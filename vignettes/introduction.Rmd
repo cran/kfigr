@@ -1,0 +1,92 @@
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{kfigr-intro}
+
+```{r setup, echo=FALSE, message=FALSE}
+require(knitr)
+require(kfigr)
+opts_chunk$set(message=FALSE, warning=FALSE)
+```
+
+Introducing kfigr
+=================
+ a streamlined, knitr-integrated cross-referencing system for HTML documents
+----------------------------------------------------------------------------
+
+### What does it do? ###
+
+`kfigr` provides cross-referencing functionality for Rmarkdown documents by creating HTML anchor tags for code chunks. `kfigr` is designed to provide a simple and flexible indexing system integrated seamlessly with `knitr`.
+
+### How does it work? ###
+
+`kfigr` provides just one function and one hook (code chunk option) to anchor a chunk. Any chunk can be anchored regardless of the output. Chunk labels are used for indexing, so there is no way to get confused about what you are referencing. Defining anchors as a chunk option forces users to write distinct chunks for any referenced output, which improves readability of the source document. Users have complete flexibility to define numbering groups for distinguishing between e.g. figures and tables. 
+
+`kfigr` defines a custom hook, `anchor`, which is used to decide how to track the chunk. We use this hook to define a "type" for the chunk. For instance, if I create a plot and want to refer it later I can pass the chunk option `anchor="figure"`. `kfigr` uses the chunk label to generate an HTML anchor tag above the chunk and assigns a number to the chunk based on its type. As an example, consider the following chunk. 
+
+```{r first-chunk, anchor="figure"}
+require(ggplot2)
+qplot(rnorm(100), geom="histogram")
+```
+
+I named the chunk "first-chunk" and used the chunk option `anchor="figure"`. Now, I will use the function `figr('first-chunk')` in an inline chunk to reference the chunk here: `r figr("first-chunk")`. The `figr` function returns the number of the referenced chunk as a markdown link, e.g. `[1](#first-chunk)`. `kfigr` keeps track of reference numbers by tracking the chunk placement sequence separately for each "type".  Note that the value of the `anchor` option is case sensitive, so "Figure" is different from "figure".
+
+If you need to, you can reference a chunk before you define it. You must specify the "type" when referencing a later chunk, and it is up to you to ensure every chunk you reference is defined. Furthermore, if you want to refer to e.g. the sixth "figure" chunk, you must first reference chunks 1-5 of type "figure". This can be done inline using `invisible(figr(...))`. This limitation is due to the way markdown documents are rendered; if you need smarter referencing capabilities, consider using LaTeX (Rnw) instead of markdown (Rmd).
+
+You can pass `prefix=TRUE` or change the [global options](#setting-global-options) to get a full label, e.g. `r figr("second-chunk", TRUE, type="figure")`.
+
+```{r second-chunk, anchor="figure"}
+qplot(runif(100), geom="density")
+```
+
+You can reference any kind of chunk output, and specify any "type" of chunk. For example, look at `r figr("third-chunk", TRUE, type="table")`:
+
+```{r third-chunk, anchor="table", results='asis'}
+kable(head(iris, 6))
+```
+
+Anchoring even works for chunks that use the `ref.label` option. For instance, consider the following code:
+
+```{r fourth-chunk, eval=FALSE}
+x = 1:20
+y = x + rnorm(20)
+lm(y~x)
+```
+
+I have not anchored the above chunk and the code was not evaluated because I used the chunk option `eval=FALSE`. If I had used `echo=FALSE` you would have no idea that the chunk even existed! But I can reproduce the chunk by creating an empty chunk with the same name (see the `knitr` documentation for more details) and anchor the empty chunk, as shown in `r figr('fourth-chunk', TRUE, type="block")`. 
+
+```{r fourth-chunk, anchor="block"}
+```
+
+If you want to reference both the code and the output of a chunk separately you can use the chunk option `ref.label` and specify an anchor for each referring chunk. Below, I create a hidden chunk and reference it using eval=FALSE to produce the code block. I then reference the hidden chunk a second time using echo=FALSE to produce only the output. 
+
+```{r fifth-chunk, echo=FALSE, eval=FALSE}
+df <- data.frame(x=x, y=y)
+ggplot(df, aes(x=x, y=y)) + geom_smooth(method="lm") + 
+geom_point(pch=21, color="black", fill="red")
+```
+
+```{r fifth-code, ref.label='fifth-chunk', anchor="block", eval=FALSE}
+```
+
+```{r fifth-plot, ref.label='fifth-chunk', anchor="figure", echo=FALSE}
+```
+
+You can verify that `r figr('fifth-code', TRUE)` and `r figr('fifth-plot', TRUE)` are distinct.
+
+`kfigr` tracks references internally. If you want to get a list of indexed chunks, you can use `anchors()` to return a structure that lists the labels by type, a reference history, and an index, as shown in `r figr('last-chunk', TRUE, type="block")`. The `history` attribute can be helpful for troubleshooting problems with document references.
+
+```{r last-chunk, anchor="block"}
+anchors("index")
+anchors("history")
+```
+
+<a name="setting-global-options"></a>
+### Setting global options ###
+
+`kfigr` uses `knitr` options to maintain global default settings. `kfigr` option names are identified by the prefix "kfigr". Two options are available: `kfigr.link` to display a link to the anchor in citations; and `kfigr.prefix` to include the prefix when referencing. These options can be changed using `opts_knit$get` and `opts_knit$set`. Any global options set within a chunk will not be available in that particular chunk (see the `knitr` documentation for more details). 
+
+### A note on tangling ###
+An important limitation of `tangle` is that inline code chunks are not evaluated. Under most circumstances the tangled code should produce the same reference numbers as the knitted document, but discrepancies will appear if you have forgotten to invisibly reference intermediate chunks, or have anchored chunks in a different order than referenced. 
+
+### Still confused? ###
+
+Take a look at the .Rnw source file for this vignette and all should become clear.

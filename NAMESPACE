@@ -1,0 +1,4 @@
+import(knitr)
+export(hook_anchor)
+export(figr)
+export(anchors)
